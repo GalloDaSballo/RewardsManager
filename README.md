@@ -1,0 +1,1 @@
+# New Rewards Manager Contract for BADGER DAO
