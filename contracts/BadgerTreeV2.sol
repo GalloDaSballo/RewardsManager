@@ -31,7 +31,7 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
         uint64 lastRewardBlock;
         uint64 allocPoint;
         uint256 lpSupply; // total deposits into that pool
-        IERC20 token; // address of the pool token
+        address token; // address of the pool token
     }
 
     /// @notice Address of BADGER contract.
@@ -51,10 +51,11 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
     uint256 private constant BADGER_PER_BLOCK = 1e20;
     uint256 private constant PRECISION = 1e12;
 
-    event Deposit(address indexed user, uint256 indexed pid, uint256 amount, address indexed to);
-    event Withdraw(address indexed user, uint256 indexed pid, uint256 amount, address indexed to);
+    event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
+    event Withdraw(address indexed user, uint256 indexed pid, uint256 amount);
+    event Transfer(address indexed from, address indexed to, uint256 indexed pid, uint256 amount);
     event Harvest(address indexed user, uint256 indexed pid, uint256 amount);
-    event LogPoolAddition(uint256 indexed pid, uint256 allocPoint, IERC20 indexed vault);
+    event LogPoolAddition(uint256 indexed pid, uint256 allocPoint, address indexed vault);
     // event LogPoolAddition(uint256 indexed pid, uint256 allocPoint, IERC20 indexed lpToken, IRewarder indexed rewarder);
     event LogSetPool(uint256 indexed pid, uint256 allocPoint);
     // event LogSetPool(uint256 indexed pid, uint256 allocPoint, IRewarder indexed rewarder, bool overwrite);
@@ -71,7 +72,7 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
     }
 
 
-    function add(uint256 allocPoint, IERC20 _poolToken) public onlyOwner {
+    function add(uint256 allocPoint, address _poolToken) public onlyOwner {
         uint256 lastRewardBlock = block.number;
         totalAllocPoint += allocPoint;
         // rewarder.push(_rewarder);
@@ -137,43 +138,52 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
         }
     }
 
-    function notifyDeposit(uint256 pid, uint256 amount, address to) public {
-        PoolInfo memory pool = updatePool(pid);
-        UserInfo storage user = userInfo[pid][to];
+    function notifyTransfer(uint256 _pid, uint256 _amount, address _from, address _to) public {
+        PoolInfo memory pool = updatePool(_pid);
+        require(msg.sender == pool.token, "Only Vault");
+        UserInfo storage from = userInfo[_pid][_from];
+        UserInfo storage to = userInfo[_pid][_to];
 
-        // Effects
-        user.amount += amount;
-        user.rewardDebt += int256((amount * pool.accBadgerPerShare) / PRECISION);
+        int256 _rewardDebt = int256((_amount * pool.accBadgerPerShare) / PRECISION);
 
-        // Interactions
-        // IRewarder _rewarder = rewarder[pid];
-        // if (address(_rewarder) != address(0)) {
-        //     _rewarder.onSushiReward(pid, to, to, 0, user.amount);
-        // }
+        if (_from == address(0)) {
+            // notifyDeposit
+            to.amount += _amount;
+            to.rewardDebt += _rewardDebt;
 
-        poolInfo[pid].lpSupply += amount;
+            // Interactions
+            // IRewarder _rewarder = rewarder[pid];
+            // if (address(_rewarder) != address(0)) {
+            //     _rewarder.onSushiReward(pid, to, to, 0, user.amount);
+            // }
 
-        emit Deposit(msg.sender, pid, amount, to);
-    }
+            poolInfo[_pid].lpSupply += _amount;
+            emit Deposit(_to, _pid, _amount);
+        } else if (_to == address(0)) {
+            // notifyWithdraw
+            from.rewardDebt -= _rewardDebt;
+            from.amount -= _amount;
 
+            // Interactions
+            // IRewarder _rewarder = rewarder[pid];
+            // if (address(_rewarder) != address(0)) {
+            //     _rewarder.onSushiReward(pid, msg.sender, to, 0, user.amount);
+            // }
+            
+            poolInfo[_pid].lpSupply -= _amount;
 
-    function notifyWithdraw(uint256 pid, uint256 amount, address to) public {
-        PoolInfo memory pool = updatePool(pid);
-        UserInfo storage user = userInfo[pid][msg.sender];
+            emit Withdraw(_from, _pid, _amount);
+        } else {
+            // transfer between users
+            to.amount += _amount;
+            from.amount -= _amount;
 
-        // Effects
-        user.rewardDebt -= int256((amount * pool.accBadgerPerShare) / PRECISION);
-        user.amount -= amount;
+            to.rewardDebt += _rewardDebt;
+            from.rewardDebt -= _rewardDebt;
 
-        // Interactions
-        // IRewarder _rewarder = rewarder[pid];
-        // if (address(_rewarder) != address(0)) {
-        //     _rewarder.onSushiReward(pid, msg.sender, to, 0, user.amount);
-        // }
-        
-        poolInfo[pid].lpSupply -= amount;
+            emit Transfer(_from, _to, _pid, _amount);
+        }
 
-        emit Withdraw(msg.sender, pid, amount, to);
     }
 
     /// @notice Harvest proceeds for transaction sender to `to`.
