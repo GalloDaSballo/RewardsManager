@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-
 pragma solidity ^0.8.9;
 
 import "../interfaces/BoringBatchable.sol";
@@ -31,7 +30,7 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
         uint64 lastRewardBlock;
         uint64 allocPoint;
         uint256 lpSupply; // total deposits into that pool
-        address token; // address of the pool token
+        address token; // address of the vault
     }
 
     /// @notice Address of BADGER contract.
@@ -72,7 +71,7 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
     }
 
 
-    function add(uint256 allocPoint, address _poolToken) public onlyOwner {
+    function add(uint256 allocPoint, address _poolToken) public onlyOwner returns(uint256 pid) {
         uint256 lastRewardBlock = block.number;
         totalAllocPoint += allocPoint;
         // rewarder.push(_rewarder);
@@ -84,7 +83,8 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
             lpSupply: 0,
             token: _poolToken
         }));
-        emit LogPoolAddition(poolInfo.length - 1, allocPoint, _poolToken);
+        pid = poolInfo.length -1;
+        emit LogPoolAddition(pid, allocPoint, _poolToken);
     }
 
     /// @notice Update the given pool's BADGER allocation point
