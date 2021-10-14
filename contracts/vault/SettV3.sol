@@ -14,6 +14,7 @@ import "../../interfaces/token/IERC20Detailed.sol";
 import "../../deps/SettAccessControlDefended.sol";
 import "../../interfaces/yearn/BadgerGuestlistApi.sol";
 import "../interfaces/IBadgerTreeV2.sol";
+import "../interfaces/ISettV3.sol";
 
 
 /*
@@ -25,7 +26,8 @@ Badger Vault contract for testing the rewards manager
 contract SettV3 is
     ERC20Upgradeable,
     SettAccessControlDefended,
-    PausableUpgradeable
+    PausableUpgradeable,
+    ISettV3
 {
     using SafeERC20Upgradeable for IERC20Upgradeable;
     using AddressUpgradeable for address;
@@ -61,7 +63,6 @@ contract SettV3 is
         address _keeper,
         address _guardian,
         address _badgerTree,
-        uint256 _pid,
         bool _overrideTokenName,
         string memory _namePrefix,
         string memory _symbolPrefix
@@ -90,7 +91,6 @@ contract SettV3 is
         controller = _controller;
         guardian = _guardian;
         BADGERTREEV2 = _badgerTree;
-        PID = _pid;
 
         min = 9500;
 
@@ -123,7 +123,7 @@ contract SettV3 is
 
     /// ===== View Functions =====
 
-    function version() public view returns (string memory) {
+    function version() public pure returns (string memory) {
         return "1.3";
     }
 
@@ -225,6 +225,13 @@ contract SettV3 is
     function setBadgerTree(address _tree) external whenNotPaused {
         _onlyAuthorizedActors();
         BADGERTREEV2 = _tree;
+    }
+
+    /// @notice this function will be called by the BadgerTree contract
+    /// on addition of this vault to the tree
+    function setPid(uint256 _pid) external whenNotPaused {
+        require(msg.sender == BADGERTREEV2, "sender not badgerTreeV2");
+        PID = _pid;
     }
 
     /// @notice Set minimum threshold of underlying that must be deposited in strategy

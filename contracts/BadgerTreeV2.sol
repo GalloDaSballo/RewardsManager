@@ -4,6 +4,7 @@ pragma solidity ^0.8.9;
 import "../interfaces/BoringBatchable.sol";
 import "../interfaces/BoringOwnable.sol";
 import "../interfaces/token/IERC20.sol";
+import "./interfaces/ISettV3.sol";
 import "../libraries/BoringERC20.sol";
 
 // TODO: 
@@ -28,7 +29,7 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
     struct PoolInfo {
         uint128 accBadgerPerShare;
         uint64 lastRewardBlock;
-        uint64 allocPoint;
+        uint64 allocPoint; 
         uint256 lpSupply; // total deposits into that pool
         address token; // address of the vault
     }
@@ -84,6 +85,7 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
             token: _poolToken
         }));
         pid = poolInfo.length -1;
+        ISettV3(_poolToken).setPid(pid);
         emit LogPoolAddition(pid, allocPoint, _poolToken);
     }
 
@@ -188,7 +190,7 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
 
     /// @notice Harvest proceeds for transaction sender to `to`.
     /// @param pid The index of the pool. See `poolInfo`.
-    /// @param to Receiver of SUSHI rewards.
+    /// @param to Receiver of BADGER rewards.
     function harvest(uint256 pid, address to) public {
         PoolInfo memory pool = updatePool(pid);
         UserInfo storage user = userInfo[pid][msg.sender];

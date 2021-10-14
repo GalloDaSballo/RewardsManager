@@ -3,3 +3,7 @@ __pycache__
 .hypothesis/
 build/
 reports/
+.env
+
+# Node/npm
+node_modules/
