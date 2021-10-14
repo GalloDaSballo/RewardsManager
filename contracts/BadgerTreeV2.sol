@@ -48,7 +48,7 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
     /// @dev Total allocation points. Must be the sum of all allocation points in all pools.
     uint256 public totalAllocPoint;
 
-    uint256 private constant BADGER_PER_BLOCK = 1e20;
+    uint256 private BADGER_PER_BLOCK;
     uint256 private constant PRECISION = 1e12;
 
     event Deposit(address indexed user, uint256 indexed pid, uint256 amount);
@@ -62,8 +62,9 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
     event LogUpdatePool(uint256 indexed pid, uint64 lastRewardBlock, uint256 lpSupply, uint256 accBadgerPerShare);
 
     /// @param _badger The BADGER token contract address.
-    constructor(IERC20 _badger) {
+    constructor(IERC20 _badger, uint256 badger_per_block) {
         BADGER = _badger;
+        BADGER_PER_BLOCK = badger_per_block;
     }
 
     /// @notice Returns the number of pools.
@@ -71,6 +72,15 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
         pools = poolInfo.length;
     }
 
+    /// @notice set the number of bader emissions per block
+    function setBadgerPerBlock(uint256 _val) external onlyOwner {
+        BADGER_PER_BLOCK = _val;
+    }
+
+    /// @notice get the block number till which the current badger emissions will last
+    function badgersTill() public view returns (uint) {
+        return block.number + (IERC20(BADGER).balanceOf(address(this)) / BADGER_PER_BLOCK);
+    }
 
     function add(uint256 allocPoint, address _poolToken) public onlyOwner returns(uint256 pid) {
         uint256 lastRewardBlock = block.number;
@@ -128,7 +138,7 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
     /// @return pool Returns the pool that was updated.
     function updatePool(uint256 pid) public returns (PoolInfo memory pool) {
         pool = poolInfo[pid];
-        if (block.number > pool.lastRewardBlock) {
+        if (block.number > pool.lastRewardBlock && block.number < badgersTill()) {
             if (pool.lpSupply > 0) {
                 uint256 blocks = block.number - pool.lastRewardBlock;
                 uint256 badgerReward = (blocks * BADGER_PER_BLOCK * pool.allocPoint) / totalAllocPoint;
