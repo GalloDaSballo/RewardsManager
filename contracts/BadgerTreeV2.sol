@@ -77,11 +77,6 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
         BADGER_PER_BLOCK = _val;
     }
 
-    /// @notice get the block number till which the current badger emissions will last
-    function badgersTill() public view returns (uint) {
-        return block.number + (IERC20(BADGER).balanceOf(address(this)) / BADGER_PER_BLOCK);
-    }
-
     function add(uint256 allocPoint, address _poolToken) public onlyOwner returns(uint256 pid) {
         uint256 lastRewardBlock = block.number;
         totalAllocPoint += allocPoint;
@@ -138,7 +133,7 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
     /// @return pool Returns the pool that was updated.
     function updatePool(uint256 pid) public returns (PoolInfo memory pool) {
         pool = poolInfo[pid];
-        if (block.number > pool.lastRewardBlock && block.number < badgersTill()) {
+        if (block.number > pool.lastRewardBlock) {
             if (pool.lpSupply > 0) {
                 uint256 blocks = block.number - pool.lastRewardBlock;
                 uint256 badgerReward = (blocks * BADGER_PER_BLOCK * pool.allocPoint) / totalAllocPoint;
