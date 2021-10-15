@@ -98,6 +98,7 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
     /// @param _pid The index of the pool. See `poolInfo`.
     /// @param _allocPoint New AP of the pool.
     function set(uint256 _pid, uint256 _allocPoint) public onlyOwner {
+        updatePool(_pid);
         totalAllocPoint = totalAllocPoint - poolInfo[_pid].allocPoint + _allocPoint;
         poolInfo[_pid].allocPoint = uint64(_allocPoint);
         emit LogSetPool(_pid, _allocPoint);
