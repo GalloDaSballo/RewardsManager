@@ -6,13 +6,14 @@ import "../interfaces/BoringOwnable.sol";
 import "../interfaces/token/IERC20.sol";
 import "./interfaces/ISettV3.sol";
 import "../libraries/BoringERC20.sol";
+import "../deps/@openzeppelin/contracts-upgradeable/utils/PausableUpgradeable.sol";
 
 // TODO: 
-// 1. What happens if the contract doesn't have enough BADGER tokens for BADGER emissions per block
+// What happens if the contract doesn't have enough BADGER tokens for BADGER emissions per block
 // Make a calculation of how many blocks the badger emmissions will last based on current balance
-//  And then create a function to pause the rewards once the badgers run out.
+// And then create a function to pause the rewards once the badgers run out.
 
-contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
+contract BadgerTreeV2 is BoringBatchable, BoringOwnable, PausableUpgradeable  {
     using BoringERC20 for IERC20;
 
     /// @notice Info of each user.
@@ -104,6 +105,11 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
         emit LogSetPool(_pid, _allocPoint);
     }
 
+    /// @notice returns the badgers emitted per block for the vault
+    function badgerPerVault(uint256 _pid) public view returns (uint256) {
+        return (BADGER_PER_BLOCK * poolInfo[_pid].allocPoint) / totalAllocPoint;
+    }
+
     /// @notice View function to see pending BADGER on frontend.
     /// @param _pid The index of the pool. See `poolInfo`.
     /// @param _user Address of user.
@@ -191,13 +197,12 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
 
             emit Transfer(_from, _to, _pid, _amount);
         }
-
     }
 
-    /// @notice Harvest proceeds for transaction sender to `to`.
-    /// @param pid The index of the pool. See `poolInfo`.
-    /// @param to Receiver of BADGER rewards.
-    function harvest(uint256 pid, address to) public {
+    /// @notice Harvest badger rewards for a vault sender to `to`
+    /// @param pid The index of the pool. See `poolInfo`
+    /// @param to Receiver of BADGER rewards
+    function claim(uint256 pid, address to) public whenNotPaused {
         PoolInfo memory pool = updatePool(pid);
         UserInfo storage user = userInfo[pid][msg.sender];
         int256 accumulatedBadger = int256((user.amount * pool.accBadgerPerShare) / PRECISION);
