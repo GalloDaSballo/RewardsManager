@@ -1,11 +1,10 @@
-import brownie
 from brownie import *
 from helpers.constants import *
 from helpers.utils import *
 from config import BADGER_PER_BLOCK
 
 
-def test_basic_single_user_single_pool(deployer, user, vault, badger_tree, badger, want):
+def test_single_user_single_pool_flow(deployer, user, vault, badger_tree, badger, want):
     # test that vault can be added to the tree
     tx = badger_tree.add(20, vault, {"from": deployer})
     pid = tx.return_value
@@ -29,3 +28,29 @@ def test_basic_single_user_single_pool(deployer, user, vault, badger_tree, badge
     badger_tree.harvest(pid, user, {"from": user})
 
     assert approx(badger.balanceOf(user), BADGER_PER_BLOCK, 0.001)
+
+    # after withdrawing all the first harvest must give the pending rewards to the user
+    # and then any other harvest after that must give zero rewards
+    vault.withdrawAll({"from": user})
+    userInfo = badger_tree.userInfo(pid, user)
+    assert userInfo[0] == 0
+
+    # if there are pending rewards
+    if (userInfo[1] < 0):  # rewardDebt will be negative if there are rewards
+        bal1 = badger.balanceOf(user)
+
+        badger_tree.harvest(pid, user, {"from": user})
+        bal2 = badger.balanceOf(user)
+
+        assert bal2 - bal1 == -userInfo[1]
+
+    bal2 = badger.balanceOf(user)
+    # all other subsequent harvests must give zero rewards
+    badger_tree.harvest(pid, user, {"from": user})
+    bal3 = badger.balanceOf(user)
+    assert bal3 - bal2 == 0
+
+    # another check for sanity
+    badger_tree.harvest(pid, user, {"from": user})
+    bal4 = badger.balanceOf(user)
+    assert bal4 - bal3 == 0

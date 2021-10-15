@@ -154,7 +154,7 @@ contract BadgerTreeV2 is BoringBatchable, BoringOwnable  {
         int256 _rewardDebt = int256((_amount * pool.accBadgerPerShare) / PRECISION);
 
         if (_from == address(0)) {
-            // notifyDeposit
+            // notifyDepositp
             to.amount += _amount;
             to.rewardDebt += _rewardDebt;
 
