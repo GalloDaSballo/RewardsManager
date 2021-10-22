@@ -31,8 +31,8 @@ contract RewardsManager {
     
     mapping(uint256 => mapping(address => uint256)) public totalPoints; // Sum of all points given for a vault at an epoch totalPoints[epochId][vaultAddress]
 
-    mapping(address => mapping(address => uint256)) lastAccruedTimestamp; // Last Epoch in which user shares, used to calculate rewards in epochs without interaction lastUserAccrue[vaultAddress][userAddress]
-    mapping(address => mapping(address => uint256)) lastUserAccrue; // Last timestamp in we accrued user to calculate rewards in epochs without interaction lastUserAccrue[vaultAddress][userAddress]
+    mapping(uint256 => mapping(address => mapping(address => uint256))) lastVaultAccruedTimestamp; // Last timestamp in which the vault was accrued in the epoch lastUserAccrueTimestamp[vaultAddress][userAddress]
+    mapping(uint256 => mapping(address => mapping(address => uint256))) lastUserAccrueTimestamp; // Last timestamp in we accrued user to calculate rewards in epochs without interaction lastUserAccrueTimestamp[epochId][vaultAddress][userAddress]
     mapping(address => uint256) lastVaultDeposit; // Last Epoch in which any user deposited in the vault, used to know if vault needs to be brought to new epoch
     // AFAIK changing storage to the same value is a NO-OP and won't cost extra gas
     // Or just have the check and skip the op if need be
@@ -219,27 +219,23 @@ contract RewardsManager {
     /// @dev Accrue points gained during this epoch
     /// @notice This is called for both receiving and sending
     function _accrueUser(address vault, address user) {
-        // Note ideally we have a deposit from currentEpoch
-        uint256 lastUserDepositEpoch = lastUserAccrue[vault][user];
-
-        // However that could be zero, hence we check for lastUserAccrue
         uint256 toMultiply = _getBalanceAtCurrentEpoch();
-        // Fast fail here, if balance is 0, just update timestamp and be done with it
 
-        uint256 timeInEpochSinceLastAccrue = _getTimeInEpochFromLastAccrue();
+        if(toMultiply > 0){
+            uint256 timeInEpochSinceLastAccrue = _getTimeInEpochFromLastAccrue();
 
-
-        // Run the math and update the system
-        uint256 newPoints = toMultiply * timeInEpochSinceLastAccrue;
-        
-        // Track user rewards
-        points[currentEpoch][vault][user] += newPoints;
-        // Track total points
-        totalPoints[currentEpoch][vault] += newPoints;
-        // At end of epoch userPoints / totalPoints is the percentage the user can receive of rewards (valid for any reward)
+            // Run the math and update the system
+            uint256 newPoints = toMultiply * timeInEpochSinceLastAccrue;
+            
+            // Track user rewards
+            points[currentEpoch][vault][user] += newPoints;
+            // Track total points
+            totalPoints[currentEpoch][vault] += newPoints;
+            // At end of epoch userPoints / totalPoints is the percentage the user can receive of rewards (valid for any reward)
+        }
 
         // Set last time for updating the user
-        lastUserAccrue[vault][user] = block.timestamp;
+        lastUserAccrueTimestamp[currentEpoch][vault][user] = block.timestamp;
     }
 
 
@@ -249,7 +245,14 @@ contract RewardsManager {
     function _getBalanceAtCurrentEpoch(address vault, address user) internal returns (uint256) {
 
         // Time Last Known Balance has changed
-        uint256 lastBalanceChangeTime = lastUserAccrue[vault][user];
+        uint256 lastBalanceChangeTime = lastUserAccrueTimestamp[currentEpoch][vault][user];
+
+        // If Timestamp is 0, it just means they never accrued during this epoch
+        // We need to iterate over previous epoch until we find a non-zero balance
+        // NOTE: This is bad
+        // If they withdraw their balance will be 0 and I don't think we have a way to know
+
+
         
         uint256 lastBalanceChangeEpoch = 0; // 0 means it never changed
         // If we return 0, it means that this is their first deposit
@@ -303,7 +306,7 @@ contract RewardsManager {
 
         // Index of epochs should be fairly easy to get as long as we force each epoch to properly start at correct time and end at correct time
         // That's because it will be equal to
-        // last_epoch_count = (START + lastUserAccrue) / epoch_length
+        // last_epoch_count = (START + lastUserAccrueTimestamp) / epoch_length
         // This assumes each epoch starts right after the previous one ends, which is currently not enforced
         // This may end up saving gas, so we may end up doing it
 
@@ -322,7 +325,7 @@ contract RewardsManager {
     }
 
     function _getTimeInEpochFromLastAccrue() internal returns (uint256) {
-        uint256 lastBalanceChangeTime = lastUserAccrue[vault][user];
+        uint256 lastBalanceChangeTime = lastUserAccrueTimestamp[vault][user];
 
         // Change in balance happened this epoch, just ensure we are in active epoch and return difference
         if(lastBalanceChangeTime > epochs[currentEpoch].blockstart) {
